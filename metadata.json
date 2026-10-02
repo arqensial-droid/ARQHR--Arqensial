@@ -1,0 +1,6 @@
+{
+  "name": "ARQHR - Enterprise SaaS HRMS Platform",
+  "description": "Next-generation multi-tenant enterprise HRMS platform with payroll, attendance, leave management, recruitment, performance, and role-based access control.",
+  "requestFramePermissions": ["geolocation", "camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
