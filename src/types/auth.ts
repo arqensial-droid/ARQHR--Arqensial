@@ -96,7 +96,10 @@ export interface SecurityAuditRecord {
     | 'PASSWORD_POLICY_UPDATED'
     | 'TWO_FACTOR_TOGGLED'
     | 'ROLE_PERMISSIONS_CHANGED'
-    | 'DATA_EXPORTED';
+    | 'DATA_EXPORTED'
+    | 'COMPANY_DELETED'
+    | 'COMPANY_DATA_RESET'
+    | 'DEMO_DATA_PURGED';
   category: 'authentication' | 'rbac' | 'tenant' | 'security' | 'compliance';
   ipAddress: string;
   userAgent: string;

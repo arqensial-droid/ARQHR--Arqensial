@@ -29,6 +29,7 @@ import { EnterpriseAuthScreen } from './components/auth/EnterpriseAuthScreen';
 import { IndianComplianceModule } from './components/compliance/IndianComplianceModule';
 import { WorkflowEngineModule } from './components/workflows/WorkflowEngineModule';
 import { AIIntelligenceSuite } from './components/ai/AIIntelligenceSuite';
+import { CompanySettings } from './components/settings/CompanySettings';
 
 const MainLayout: React.FC = () => {
   const { activeTab, currentTenant, currentRole, isAuthenticated } = useApp();
@@ -87,6 +88,8 @@ const MainLayout: React.FC = () => {
       case 'superadmin_companies':
       case 'superadmin_billing':
         return <SuperAdminPortal />;
+      case 'company_settings':
+        return <CompanySettings />;
       default:
         return <CompanyDashboard />;
     }

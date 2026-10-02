@@ -7,6 +7,7 @@ export interface ApiResponse<T> {
 
 // Global persistent local database storage keys
 const DB_PREFIX = 'arqensial_db_';
+const CLEAN_PROD_FLAG = 'arqhr_db_clean_production_v3_superadmin';
 
 export function getLocalTableData<T>(table: string): T[] {
   if (typeof window === 'undefined') return [];
@@ -34,13 +35,23 @@ export function clearLocalDatabase(): void {
     const keysToRemove: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key && (key.startsWith('arqhr_db_') || key.startsWith('arqensial_db_'))) {
-        keysToRemove.push(key);
+      if (key && (key.startsWith('arqhr_db_') || key.startsWith('arqensial_db_') || key.startsWith('arqhr_'))) {
+        if (key !== CLEAN_PROD_FLAG) {
+          keysToRemove.push(key);
+        }
       }
     }
     keysToRemove.forEach(k => localStorage.removeItem(k));
   } catch (e) {
     console.error('Error clearing local database:', e);
+  }
+}
+
+// Auto-flush legacy demo cache on first load
+if (typeof window !== 'undefined') {
+  if (!localStorage.getItem(CLEAN_PROD_FLAG)) {
+    clearLocalDatabase();
+    localStorage.setItem(CLEAN_PROD_FLAG, 'true');
   }
 }
 

@@ -26,6 +26,7 @@ import {
   IndianRupee,
   GitMerge,
   Sparkles,
+  Settings,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -51,6 +52,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
     activeTab,
     setActiveTab,
     currentRole,
+    tenants,
     employees,
     leaveRequests,
     payrollRuns,
@@ -67,7 +69,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
     {
       title: 'SUPER ADMIN SUITE',
       items: [
-        { id: 'superadmin_companies', label: 'Client Workspaces', icon: Building, badge: '4' },
+        { id: 'superadmin_companies', label: 'Company Management', icon: Building, badge: tenants.length > 0 ? tenants.length : undefined },
+        { id: 'company_settings', label: 'Company Settings', icon: Settings },
         { id: 'reports', label: 'Global Analytics', icon: BarChart3 },
         { id: 'security', label: 'Platform Audit Logs', icon: Shield },
         { id: 'database_schema', label: 'PostgreSQL Schema & RLS', icon: Database },
@@ -138,6 +141,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
     {
       title: 'GOVERNANCE & DATA',
       items: [
+        { id: 'company_settings', label: 'Company Settings', icon: Settings },
         { id: 'reports', label: 'Enterprise Reports', icon: BarChart3 },
         { id: 'security', label: 'Security & Audit Logs', icon: Shield },
         { id: 'database_schema', label: 'Database & RLS Schema', icon: Database },

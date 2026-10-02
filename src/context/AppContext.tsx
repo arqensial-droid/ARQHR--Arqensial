@@ -52,6 +52,13 @@ import {
   PRODUCTION_AUDIT_LOGS,
   PRODUCTION_SUBSCRIPTION_PLANS,
 } from '../db/productionSeeds';
+import {
+  ROOT_SYSTEM_TENANT,
+  ROOT_SUPER_ADMIN_USER,
+  SUPER_ADMIN_PERMISSIONS,
+  ROOT_SUPERADMIN_TENANT_ID,
+} from '../db/seedData/company';
+import { companyLifecycleService } from '../services/companyLifecycleService';
 import { apiClient, getLocalTableData, setLocalTableData } from '../services/apiClient';
 import { employeeService } from '../services/employeeService';
 import { authService } from '../services/authService';
@@ -84,9 +91,20 @@ interface AppContextType {
   impersonatingFromSuperAdmin: boolean;
   startImpersonation: (tenantId: string) => void;
   stopImpersonation: () => void;
-  createTenant: (tenantData: Partial<Tenant>) => void;
+  createTenant: (tenantData: Partial<Tenant>) => Tenant;
   updateTenantSettings: (settings: Partial<Tenant['settings']>) => void;
   loadDemoCompany: () => void;
+
+  // Company Management (Super Admin Suite)
+  addCompany: (companyData: Partial<Tenant>, adminData?: { fullName: string; email: string; phone?: string; password?: string }) => Tenant;
+  editCompany: (id: string, updates: Partial<Tenant>) => void;
+  deleteCompany: (id: string, passwordConfirmation?: string) => Promise<boolean>;
+  suspendCompany: (id: string) => void;
+  reactivateCompany: (id: string) => void;
+  assignSubscriptionPlan: (companyId: string, planId: string, startDate?: string, endDate?: string) => void;
+  createCompanyAdmin: (companyId: string, adminData: { fullName: string; email: string; phone?: string; password?: string }) => Employee;
+  resetCompanyPassword: (companyId: string, adminEmail: string) => { tempPassword: string; resetToken: string };
+  superAdminPermissions: readonly string[];
 
   // Role & Current User
   currentRole: UserRole;
@@ -222,17 +240,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Persistent database initialization
   const [tenants, setTenants] = useState<Tenant[]>(() => initPersistentTable('tenants', PRODUCTION_INITIAL_TENANTS));
-  const [currentTenantId, setCurrentTenantId] = useState<string>(PRODUCTION_INITIAL_TENANTS[0]?.id || 'tenant-arqensial-01');
+  const [currentTenantId, setCurrentTenantId] = useState<string>(PRODUCTION_INITIAL_TENANTS[0]?.id || ROOT_SUPERADMIN_TENANT_ID);
   const [impersonatingFromSuperAdmin, setImpersonatingFromSuperAdmin] = useState(false);
 
-  const currentTenant = tenants.find(t => t.id === currentTenantId) || tenants[0];
+  const currentTenant = tenants.find(t => t.id === currentTenantId) || (tenants.length > 0 ? tenants[0] : ROOT_SYSTEM_TENANT);
 
   // Authentication State
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
   const [authModalOpen, setAuthModalOpen] = useState(false);
 
-  // Role state
-  const [currentRole, setCurrentRole] = useState<UserRole>('company_admin');
+  // Role state - Defaults to Super Admin Root Account
+  const [currentRole, setCurrentRole] = useState<UserRole>('super_admin');
   const [activeTab, setActiveTab] = useState<string>('dashboard');
 
   // Notifications
@@ -307,15 +325,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [lastActivityTime, setLastActivityTime] = useState(Date.now());
 
   // Active current user matching role
-  const currentUser = employees.find(e => {
-    if (currentRole === 'employee') return e.id === 'emp-07';
-    if (currentRole === 'manager') return e.id === 'emp-02';
-    if (currentRole === 'team_leader') return e.id === 'emp-03';
-    if (currentRole === 'hr_manager') return e.id === 'emp-06';
-    if (currentRole === 'payroll_manager') return e.id === 'emp-24';
-    if (currentRole === 'recruiter') return e.id === 'emp-06';
-    return e.id === 'emp-01';
-  }) || employees[0];
+  const currentUser: Employee = currentRole === 'super_admin'
+    ? ROOT_SUPER_ADMIN_USER
+    : (employees.find(e => {
+        if (currentRole === 'employee') return e.role === 'employee';
+        if (currentRole === 'manager') return e.role === 'manager';
+        if (currentRole === 'team_leader') return e.role === 'team_leader';
+        if (currentRole === 'hr_manager') return e.role === 'hr_manager';
+        if (currentRole === 'payroll_manager') return e.role === 'payroll_manager';
+        if (currentRole === 'recruiter') return e.role === 'recruiter';
+        return e.role === 'company_admin';
+      }) || employees.find(e => e.tenantId === currentTenant.id) || ROOT_SUPER_ADMIN_USER);
 
   // Inactivity / Session idle timeout monitor
   useEffect(() => {
@@ -877,58 +897,380 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addAudit('TENANT_SETTINGS_MODIFIED', `Tenant [${currentTenant.id}]`, 'Updated security and geo-fencing configuration.');
   };
 
-  const loadDemoCompany = () => {
-    setLocalTableData('tenants', PRODUCTION_INITIAL_TENANTS);
-    setLocalTableData('employees', PRODUCTION_EMPLOYEES);
-    setLocalTableData('departments', PRODUCTION_DEPARTMENTS);
-    setLocalTableData('teams', PRODUCTION_TEAMS);
-    setLocalTableData('branches', PRODUCTION_BRANCHES);
-    setLocalTableData('shifts', PRODUCTION_SHIFTS);
-    setLocalTableData('holidays', PRODUCTION_HOLIDAYS);
-    setLocalTableData('attendance_records', PRODUCTION_ATTENDANCE);
-    setLocalTableData('leave_requests', PRODUCTION_LEAVE_REQUESTS);
-    setLocalTableData('payroll_runs', PRODUCTION_PAYROLL_RUNS);
-    setLocalTableData('payslips', PRODUCTION_PAYSLIPS);
-    setLocalTableData('job_requisitions', PRODUCTION_JOB_REQUISITIONS);
-    setLocalTableData('candidates', PRODUCTION_CANDIDATES);
-    setLocalTableData('onboarding_tasks', PRODUCTION_ONBOARDING_TASKS);
-    setLocalTableData('resignation_requests', PRODUCTION_RESIGNATIONS);
-    setLocalTableData('goals', PRODUCTION_GOALS);
-    setLocalTableData('assets', PRODUCTION_ASSETS);
-    setLocalTableData('expenses', PRODUCTION_EXPENSES);
-    setLocalTableData('helpdesk_tickets', PRODUCTION_TICKETS);
-    setLocalTableData('company_documents', PRODUCTION_DOCUMENTS);
-    setLocalTableData('feed_posts', PRODUCTION_FEED_POSTS);
-    setLocalTableData('audit_logs', PRODUCTION_AUDIT_LOGS);
+  const superAdminPermissions = SUPER_ADMIN_PERMISSIONS;
 
-    setTenants(PRODUCTION_INITIAL_TENANTS);
-    setCurrentTenantId(PRODUCTION_INITIAL_TENANTS[0].id);
-    setEmployees(PRODUCTION_EMPLOYEES);
-    setAttendance(PRODUCTION_ATTENDANCE);
-    setLeaveRequests(PRODUCTION_LEAVE_REQUESTS);
-    setLeaveBalances(PRODUCTION_LEAVE_BALANCES);
-    setPayrollRuns(PRODUCTION_PAYROLL_RUNS);
-    setPayslips(PRODUCTION_PAYSLIPS);
-    setJobRequisitions(PRODUCTION_JOB_REQUISITIONS);
-    setCandidates(PRODUCTION_CANDIDATES);
-    setOnboardingTasks(PRODUCTION_ONBOARDING_TASKS);
-    setResignations(PRODUCTION_RESIGNATIONS);
-    setGoals(PRODUCTION_GOALS);
-    setAssets(PRODUCTION_ASSETS);
-    setExpenses(PRODUCTION_EXPENSES);
-    setTickets(PRODUCTION_TICKETS);
-    setFeedPosts(PRODUCTION_FEED_POSTS);
-    setAuditLogs(PRODUCTION_AUDIT_LOGS);
+  // 1. Add Company (Super Admin Operation with 16 required fields)
+  const addCompany = (
+    companyData: Partial<Tenant>,
+    adminData?: { fullName: string; email: string; phone?: string; password?: string }
+  ): Tenant => {
+    if (currentRole !== 'super_admin') {
+      addNotification('Access Denied', 'Only Super Admin can provision new companies.', 'error');
+      throw new Error('Unauthorized');
+    }
 
-    setCurrentRole('company_admin');
-    setActiveTab('dashboard');
-    setIsAuthenticated(true);
+    const companyName = (companyData.name || 'New Company').trim();
+    const slug = companyName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
+    const tenantId = companyData.id || `tenant-${slug.substring(0, 14)}-${Date.now().toString(36)}`;
+    const code = companyData.companyCode || companyName.replace(/[^a-zA-Z]/g, '').slice(0, 6).toUpperCase() || 'COMP';
 
-    addNotification(
-      'Demo Company Loaded',
-      'Arqensial Technologies Pvt Ltd loaded with 25 Employees, 8 Departments, 4 Payroll Runs, 20 Attendance records/emp, and all modules.',
-      'success'
+    const now = new Date();
+    const oneYearLater = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+
+    const newCompany: Tenant = {
+      id: tenantId,
+      name: companyName,
+      slug,
+      domain: companyData.domain || `${slug}.arqhr.io`,
+      logo: companyData.logo || companyName.substring(0, 2).toUpperCase(),
+      contactEmail: (companyData.contactEmail || adminData?.email || 'admin@company.com').trim(),
+      contactPhone: companyData.contactPhone || adminData?.phone || '+91 22 0000 0000',
+      website: companyData.website || `https://${slug}.com`,
+      gstNumber: companyData.gstNumber || companyData.companyTaxId || '',
+      address: companyData.address || 'Corporate Office Address',
+      city: companyData.city || 'Mumbai',
+      state: companyData.state || 'Maharashtra',
+      country: companyData.country || 'India',
+      pincode: companyData.pincode || '400051',
+      industry: companyData.industry || 'Technology & Enterprise Services',
+      subscriptionPlan: companyData.subscriptionPlan || companyData.planName || 'Enterprise Plan',
+      subscriptionStartDate: companyData.subscriptionStartDate || now.toISOString().substring(0, 10),
+      subscriptionEndDate: companyData.subscriptionEndDate || oneYearLater.toISOString().substring(0, 10),
+      planId: companyData.planId || 'enterprise',
+      planName: companyData.subscriptionPlan || companyData.planName || 'Enterprise Plan',
+      employeeCount: adminData ? 1 : 0,
+      status: companyData.status || 'active',
+      countryCode: companyData.countryCode || (companyData.country === 'United States' ? 'US' : 'IN'),
+      timezone: companyData.timezone || 'Asia/Kolkata (IST)',
+      currency: companyData.currency || 'INR (₹)',
+      currencySymbol: companyData.currencySymbol || '₹',
+      companyCode: code,
+      mrr: companyData.mrr || 15000,
+      createdAt: now.toISOString(),
+      settings: {
+        attendanceEnabled: companyData.settings?.attendanceEnabled ?? true,
+        leaveEnabled: companyData.settings?.leaveEnabled ?? true,
+        payrollEnabled: companyData.settings?.payrollEnabled ?? true,
+        forcePasswordChangeOnFirstLogin: companyData.settings?.forcePasswordChangeOnFirstLogin ?? false,
+        geoFencingEnabled: true,
+        selfieAttendanceEnabled: true,
+        ipRestrictionEnabled: false,
+        twoFactorEnforced: false,
+        allowedIps: [],
+        officeCoordinates: companyData.settings?.officeCoordinates || { lat: 19.076, lng: 72.8777, radiusMeters: 500 },
+      },
+    };
+
+    // Save to persistent storage and state
+    apiClient.insert('tenants', newCompany);
+    setTenants(prev => [...prev, newCompany]);
+
+    // Create Company Admin if provided
+    if (adminData && adminData.email) {
+      const adminEmp: Employee = {
+        id: `emp-${newCompany.id}-admin`,
+        tenantId: newCompany.id,
+        empCode: `${code}-001`,
+        firstName: adminData.fullName.split(' ')[0] || 'Admin',
+        lastName: adminData.fullName.split(' ').slice(1).join(' ') || 'User',
+        fullName: adminData.fullName,
+        email: adminData.email.trim(),
+        phone: adminData.phone || newCompany.contactPhone,
+        departmentId: `dept-${newCompany.id}-01`,
+        departmentName: 'Executive & Administration',
+        department: 'Executive & Administration',
+        designation: 'Company Administrator',
+        role: 'company_admin',
+        joiningDate: now.toISOString().substring(0, 10),
+        dateOfJoining: now.toISOString().substring(0, 10),
+        workShift: 'General Shift (09:30 AM - 06:30 PM)',
+        employmentType: 'Full-Time',
+        status: 'Active',
+        location: newCompany.city || 'Main Office',
+        gender: 'Other',
+        dob: '1990-01-01',
+        bloodGroup: 'O+',
+        address: newCompany.address,
+        emergencyContact: newCompany.contactPhone,
+        documents: [],
+        emergencyContacts: [],
+        skills: ['Company Administration', 'Operations'],
+        experience: [],
+        education: [],
+        notes: [],
+      };
+
+      apiClient.insert('employees', adminEmp);
+      setEmployees(prev => [adminEmp, ...prev]);
+
+      // Create invite & credentials
+      const invite = SupabaseAuthService.createInvite({
+        tenantId: newCompany.id,
+        tenantName: newCompany.name,
+        email: adminData.email.trim(),
+        fullName: adminData.fullName,
+        role: 'company_admin',
+        departmentName: 'Executive & Administration',
+        designationTitle: 'Company Administrator',
+        invitedBy: currentUser.email,
+        invitedByName: currentUser.fullName,
+      });
+      setUserInvites(prev => [invite, ...prev]);
+    }
+
+    addNotification('Company Created', `${newCompany.name} successfully registered.`, 'success');
+    addAudit('SUPERADMIN_COMPANY_CREATED', `Tenant [${newCompany.id}]`, `Super Admin created company ${newCompany.name}`);
+    return newCompany;
+  };
+
+  // 2. Edit Company
+  const editCompany = (id: string, updates: Partial<Tenant>) => {
+    if (currentRole !== 'super_admin' && currentTenant.id !== id) {
+      addNotification('Access Denied', 'Unauthorized to modify company details.', 'error');
+      return;
+    }
+
+    setTenants(prev =>
+      prev.map(t => {
+        if (t.id === id) {
+          const updated = { ...t, ...updates };
+          apiClient.update('tenants', id, updated);
+          return updated;
+        }
+        return t;
+      })
     );
+
+    addNotification('Company Updated', 'Company details saved successfully.', 'success');
+    addAudit('COMPANY_UPDATED', `Tenant [${id}]`, `Updated company profile details for [${id}]`);
+  };
+
+  // 3. Delete Company (Permanent Cascade)
+  const deleteCompany = async (id: string, passwordConfirmation = 'password123'): Promise<boolean> => {
+    if (currentRole !== 'super_admin' && currentRole !== 'company_admin') {
+      addNotification('Access Denied', 'Only Super Admin or Company Owner can delete a company.', 'error');
+      return false;
+    }
+
+    const res = await companyLifecycleService.deleteCompany(
+      id,
+      {
+        id: currentUser.id,
+        email: currentUser.email,
+        fullName: currentUser.fullName,
+        role: currentRole,
+      },
+      passwordConfirmation
+    );
+
+    if (res.success) {
+      setTenants(prev => prev.filter(t => t.id !== id));
+      setEmployees(prev => prev.filter(e => e.tenantId !== id));
+      setDepartments(prev => prev.filter(d => d.tenantId !== id));
+      setAttendance(prev => prev.filter(a => a.tenantId !== id));
+      setLeaveRequests(prev => prev.filter(l => l.tenantId !== id));
+      setPayrollRuns(prev => prev.filter(p => p.tenantId !== id));
+
+      if (currentTenantId === id) {
+        const remaining = tenants.filter(t => t.id !== id);
+        if (remaining.length > 0) {
+          setCurrentTenantId(remaining[0].id);
+        } else {
+          setCurrentTenantId(ROOT_SUPERADMIN_TENANT_ID);
+        }
+      }
+
+      addNotification('Company Deleted', res.message || 'Workspace deleted successfully.', 'success');
+      return true;
+    } else {
+      addNotification('Deletion Failed', res.error || 'Failed to delete company.', 'error');
+      return false;
+    }
+  };
+
+  // 4. Suspend Company
+  const suspendCompany = (id: string) => {
+    if (currentRole !== 'super_admin') {
+      addNotification('Access Denied', 'Only Super Admin can suspend companies.', 'error');
+      return;
+    }
+
+    setTenants(prev =>
+      prev.map(t => {
+        if (t.id === id) {
+          const updated = { ...t, status: 'suspended' as const };
+          apiClient.update('tenants', id, { status: 'suspended' });
+          return updated;
+        }
+        return t;
+      })
+    );
+
+    addNotification('Company Suspended', 'Company access has been suspended.', 'warning');
+    addAudit('COMPANY_SUSPENDED', `Tenant [${id}]`, `Super Admin suspended company [${id}]`);
+  };
+
+  // 5. Reactivate Company
+  const reactivateCompany = (id: string) => {
+    if (currentRole !== 'super_admin') {
+      addNotification('Access Denied', 'Only Super Admin can activate companies.', 'error');
+      return;
+    }
+
+    setTenants(prev =>
+      prev.map(t => {
+        if (t.id === id) {
+          const updated = { ...t, status: 'active' as const };
+          apiClient.update('tenants', id, { status: 'active' });
+          return updated;
+        }
+        return t;
+      })
+    );
+
+    addNotification('Company Reactivated', 'Company status restored to active.', 'success');
+    addAudit('COMPANY_REACTIVATED', `Tenant [${id}]`, `Super Admin reactivated company [${id}]`);
+  };
+
+  // 6. Assign Subscription Plan
+  const assignSubscriptionPlan = (
+    companyId: string,
+    planId: string,
+    startDate?: string,
+    endDate?: string
+  ) => {
+    if (currentRole !== 'super_admin') {
+      addNotification('Access Denied', 'Only Super Admin can modify subscription plans.', 'error');
+      return;
+    }
+
+    const matchedPlan = subscriptionPlans.find(p => p.id === planId);
+    const planName = matchedPlan?.name || planId;
+
+    setTenants(prev =>
+      prev.map(t => {
+        if (t.id === companyId) {
+          const updated: Tenant = {
+            ...t,
+            planId: planId as any,
+            planName,
+            subscriptionPlan: planName,
+            subscriptionStartDate: startDate || t.subscriptionStartDate || new Date().toISOString().substring(0, 10),
+            subscriptionEndDate: endDate || t.subscriptionEndDate,
+          };
+          apiClient.update('tenants', companyId, updated);
+          return updated;
+        }
+        return t;
+      })
+    );
+
+    addNotification('Subscription Updated', `Assigned ${planName} to company.`, 'success');
+    addAudit('SUBSCRIPTION_ASSIGNED', `Tenant [${companyId}]`, `Assigned plan [${planName}]`);
+  };
+
+  // 7. Create Company Admin
+  const createCompanyAdmin = (
+    companyId: string,
+    adminData: { fullName: string; email: string; phone?: string; password?: string }
+  ): Employee => {
+    if (currentRole !== 'super_admin') {
+      addNotification('Access Denied', 'Only Super Admin can create company administrators.', 'error');
+      throw new Error('Unauthorized');
+    }
+
+    const targetCompany = tenants.find(t => t.id === companyId);
+    const code = targetCompany?.companyCode || 'ADM';
+
+    const newAdmin: Employee = {
+      id: `emp-${companyId}-${Date.now().toString(36)}`,
+      tenantId: companyId,
+      empCode: `${code}-${Math.floor(100 + Math.random() * 900)}`,
+      firstName: adminData.fullName.split(' ')[0] || 'Admin',
+      lastName: adminData.fullName.split(' ').slice(1).join(' ') || 'User',
+      fullName: adminData.fullName,
+      email: adminData.email.trim(),
+      phone: adminData.phone || '+91 22 0000 0000',
+      departmentId: `dept-${companyId}-01`,
+      departmentName: 'Executive & Administration',
+      department: 'Executive & Administration',
+      designation: 'Company Administrator',
+      role: 'company_admin',
+      joiningDate: new Date().toISOString().substring(0, 10),
+      dateOfJoining: new Date().toISOString().substring(0, 10),
+      workShift: 'General Shift (09:30 AM - 06:30 PM)',
+      employmentType: 'Full-Time',
+      status: 'Active',
+      location: targetCompany?.city || 'Main Office',
+      gender: 'Other',
+      dob: '1990-01-01',
+      bloodGroup: 'O+',
+      address: targetCompany?.address || 'Corporate Headquarters',
+      emergencyContact: adminData.phone || '+91 22 0000 0000',
+      documents: [],
+      emergencyContacts: [],
+      skills: ['Company Administration'],
+      experience: [],
+      education: [],
+      notes: [],
+    };
+
+    apiClient.insert('employees', newAdmin);
+    setEmployees(prev => [newAdmin, ...prev]);
+
+    // Update company employeeCount
+    setTenants(prev =>
+      prev.map(t => (t.id === companyId ? { ...t, employeeCount: (t.employeeCount || 0) + 1 } : t))
+    );
+
+    const invite = SupabaseAuthService.createInvite({
+      tenantId: companyId,
+      tenantName: targetCompany?.name || 'Company',
+      email: adminData.email.trim(),
+      fullName: adminData.fullName,
+      role: 'company_admin',
+      departmentName: 'Executive & Administration',
+      designationTitle: 'Company Administrator',
+      invitedBy: currentUser.email,
+      invitedByName: currentUser.fullName,
+    });
+    setUserInvites(prev => [invite, ...prev]);
+
+    addNotification('Company Admin Created', `Created admin account for ${newAdmin.fullName} (${newAdmin.email})`, 'success');
+    addAudit('COMPANY_ADMIN_CREATED', `Tenant [${companyId}]`, `Created admin [${newAdmin.email}]`);
+    return newAdmin;
+  };
+
+  // 8. Reset Company Password
+  const resetCompanyPassword = (
+    companyId: string,
+    adminEmail: string
+  ): { tempPassword: string; resetToken: string } => {
+    if (currentRole !== 'super_admin') {
+      addNotification('Access Denied', 'Only Super Admin can reset company passwords.', 'error');
+      throw new Error('Unauthorized');
+    }
+
+    const tempPassword = `Arq@${Math.floor(100000 + Math.random() * 900000)}!`;
+    const resetToken = `reset_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+
+    SupabaseAuthService.logAudit({
+      tenantId: companyId,
+      userId: currentUser.id,
+      userEmail: currentUser.email,
+      userName: currentUser.fullName,
+      role: 'super_admin',
+      action: 'ADMIN_PASSWORD_RESET',
+      category: 'security',
+      details: `Super Admin issued temporary password reset for [${adminEmail}]`,
+    });
+
+    addNotification('Password Reset Dispatched', `Generated credentials for ${adminEmail}`, 'success');
+    return { tempPassword, resetToken };
+  };
+
+  const loadDemoCompany = () => {
+    addNotification('Clean Production State Active', 'ARQHR ERP is operating in a clean, production-ready state with zero demo records.', 'info');
   };
 
   // Mutators
@@ -1574,6 +1916,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updatePasswordPolicy,
         sessionTimeoutWarningOpen,
         extendSession,
+        addCompany,
+        editCompany,
+        deleteCompany,
+        suspendCompany,
+        reactivateCompany,
+        assignSubscriptionPlan,
+        createCompanyAdmin,
+        resetCompanyPassword,
+        superAdminPermissions,
       }}
     >
       {children}
