@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { AttendanceQuickPunch } from './AttendanceQuickPunch';
 import {
@@ -7,19 +7,22 @@ import {
   Clock,
   CalendarDays,
   Banknote,
-  Cake,
-  Award,
-  ArrowUpRight,
-  TrendingUp,
-  AlertCircle,
-  Briefcase,
-  UserPlus,
   Building2,
-  DollarSign,
+  Cake,
+  Bell,
+  Radio,
   PlusCircle,
-  ShieldCheck,
+  UserPlus,
+  AlertCircle,
+  TrendingUp,
+  ArrowRight,
   Shield,
+  Activity,
   Layers,
+  Sparkles,
+  ExternalLink,
+  ChevronRight,
+  FolderArchive,
 } from 'lucide-react';
 
 export const CompanyDashboard: React.FC = () => {
@@ -31,94 +34,126 @@ export const CompanyDashboard: React.FC = () => {
     leaveRequests,
     payrollRuns,
     departments,
+    auditLogs,
+    feedPosts,
+    notifications,
     currentRole,
+    currentUser,
     setActiveTab,
+    punchAttendance,
+    addNotification,
   } = useApp();
 
   const isSuperAdmin = currentRole === 'super_admin';
   const hasCompanies = tenants.length > 0;
+  const hasEmployees = employees.length > 0;
 
-  // Real KPI calculations (zero hardcoded values)
-  const totalCompaniesCount = tenants.length;
+  // Real KPI calculations
   const totalEmployeesCount = employees.length;
-  const totalUsersCount = tenants.reduce((acc, t) => acc + (t.employeeCount || 0), 0);
-  const totalClientsCount = tenants.length;
-  const totalRevenue = tenants.reduce((acc, t) => acc + (t.mrr || 0), 0);
-
+  const activeCompaniesCount = tenants.length;
   const today = new Date().toISOString().substring(0, 10);
-  const todayRecords = attendance.filter(a => a.date === today);
+  const todayRecords = attendance.filter((a) => a.date === today);
 
-  const presentCount = todayRecords.filter(a => a.status === 'Present').length;
-  const lateCount = todayRecords.filter(a => a.status === 'Late').length;
-  const onLeaveCount = todayRecords.filter(a => a.status === 'On Leave').length;
+  const presentCount = todayRecords.filter((a) => a.status === 'Present').length;
+  const lateCount = todayRecords.filter((a) => a.status === 'Late').length;
+  const onLeaveCount = todayRecords.filter((a) => a.status === 'On Leave').length;
   const absentCount = Math.max(0, employees.length - presentCount - lateCount - onLeaveCount);
 
-  const pendingLeaves = leaveRequests.filter(l => l.status === 'Pending');
-  const draftPayroll = payrollRuns.find(p => p.status === 'Draft');
+  const pendingLeaves = leaveRequests.filter((l) => l.status === 'Pending');
+
+  // Monthly payroll calculation
+  const latestPayrollRun = payrollRuns[0];
+  const monthlyPayrollTotal =
+    latestPayrollRun?.totalNet ||
+    employees.reduce((acc, e) => acc + (e.salaryStructure?.monthlyGross || 0), 0);
 
   // Dynamic upcoming milestones from real employees
   const upcomingBirthdays = employees
-    .filter(e => e.dob)
-    .slice(0, 3)
-    .map(e => ({
+    .filter((e) => e.dob)
+    .slice(0, 4)
+    .map((e) => ({
       name: e.fullName,
       role: e.designation,
       date: e.dob,
     }));
 
-  const upcomingAnniversaries = employees
-    .filter(e => e.joiningDate)
-    .slice(0, 3)
-    .map(e => ({
-      name: e.fullName,
-      role: e.designation,
-      date: e.joiningDate,
-    }));
+  // Quick punch helper
+  const handleQuickClockIn = () => {
+    const success = punchAttendance('check_in', 'Web', { isWFH: false });
+    if (success) {
+      addNotification('Attendance Clocked', 'You have clocked in successfully for today.', 'success');
+    }
+  };
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto font-sans">
-      {/* Welcome Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#0F172A] rounded-2xl p-6 text-[#F8FAFC] shadow-sm border border-[#1E293B]">
-        <div>
-          <div className="flex items-center gap-2 text-[#14B8A6] text-xs font-mono uppercase tracking-wider">
-            <span>{isSuperAdmin ? 'ARQENSIAL Root Authority' : currentTenant.name}</span>
-            <span>·</span>
-            <span>{isSuperAdmin ? 'Platform Super Admin' : (currentTenant.planName || 'Enterprise Plan')}</span>
+    <div className="p-4 sm:p-6 lg:p-8 space-y-8 max-w-7xl mx-auto font-sans antialiased text-[#0F172A]">
+      {/* 1. WELCOME BANNER WITH DYNAMIC COMPANY LOGO */}
+      <div className="p-6 sm:p-7 rounded-2xl bg-[#0F172A] text-white shadow-md border border-[#1E293B] flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="flex items-start sm:items-center gap-5">
+          {/* Company Logo or ARQENSIAL Default Placeholder */}
+          {currentTenant.logo ? (
+            <div
+              onClick={() => setActiveTab('documents')}
+              className="w-16 h-16 rounded-2xl bg-white p-2 border border-slate-700 shadow-md flex items-center justify-center shrink-0 cursor-pointer hover:border-[#2563EB] transition-colors"
+              title="Manage Company Logo in File Vault"
+            >
+              <img
+                src={currentTenant.logo}
+                alt={currentTenant.name}
+                className="max-h-full max-w-full object-contain"
+              />
+            </div>
+          ) : (
+            <div
+              onClick={() => setActiveTab('documents')}
+              className="w-16 h-16 rounded-2xl bg-[#2563EB] text-white flex items-center justify-center font-black text-2xl shadow-md shrink-0 cursor-pointer hover:bg-[#1D4ED8] transition-colors"
+              title="ARQENSIAL Default Placeholder Logo. Click to upload custom logo."
+            >
+              AQ
+            </div>
+          )}
+
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-[#3B82F6] text-xs font-mono uppercase tracking-wider font-semibold">
+              <span>{isSuperAdmin ? 'ARQENSIAL Root Holding' : currentTenant.name}</span>
+              <span aria-hidden="true">·</span>
+              <span>{isSuperAdmin ? 'Super Admin Portal' : (currentTenant.subscriptionPlan || 'Enterprise Tier')}</span>
+            </div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
+              {isSuperAdmin ? 'Enterprise Platform Command Center' : 'Workforce Command Center'}
+            </h1>
+            <p className="text-xs text-slate-300 max-w-xl leading-relaxed">
+              {isSuperAdmin
+                ? 'Centralized multi-tenant infrastructure. Oversee subsidiaries, holding organizations, and global security.'
+                : `Active operations dashboard for ${employees.length} team members across ${departments.length} functional departments.`}
+            </p>
           </div>
-          <h1 className="text-xl sm:text-2xl font-bold mt-1 text-[#F8FAFC] tracking-tight">
-            {isSuperAdmin ? 'Enterprise Platform Command Center' : 'Workforce Command Center'}
-          </h1>
-          <p className="text-xs text-[#CBD5E1] mt-1 max-w-xl">
-            {isSuperAdmin
-              ? 'Multi-tenant cloud orchestration engine. Full administrative control across all organizations.'
-              : `Live workspace overview for ${employees.length} team members across ${departments.length} departments.`}
-          </p>
         </div>
 
-        {/* Quick action buttons */}
-        <div className="flex items-center gap-2 shrink-0">
+        {/* Quick Top Actions */}
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
           {isSuperAdmin ? (
             <button
               onClick={() => setActiveTab('superadmin_companies')}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-[#0F766E] hover:bg-[#115E59] rounded-xl transition-all shadow-xs cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-xl shadow-xs transition-colors cursor-pointer"
             >
               <PlusCircle className="w-4 h-4" />
-              <span>Company Management</span>
+              <span>Add New Company</span>
             </button>
           ) : (
             <>
               <button
                 onClick={() => setActiveTab('employees')}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#CBD5E1] bg-[#1E293B] hover:bg-slate-700 rounded-lg transition-colors border border-[#1E293B] cursor-pointer"
+                className="flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-xl shadow-xs transition-colors cursor-pointer"
               >
-                <UserPlus className="w-3.5 h-3.5" />
+                <UserPlus className="w-4 h-4" />
                 <span>Add Employee</span>
               </button>
               <button
                 onClick={() => setActiveTab('payroll')}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#CBD5E1] bg-[#1E293B] hover:bg-slate-700 rounded-lg transition-colors border border-[#1E293B] cursor-pointer"
+                className="flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-semibold text-slate-200 bg-[#1E293B] hover:bg-slate-700 rounded-xl border border-slate-700 transition-colors cursor-pointer"
               >
-                <Banknote className="w-3.5 h-3.5 text-[#14B8A6]" />
+                <Banknote className="w-4 h-4 text-[#3B82F6]" />
                 <span>Run Payroll</span>
               </button>
             </>
@@ -126,297 +161,402 @@ export const CompanyDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* SUPER ADMIN OR EMPTY STATE METRICS STRIP (Total Companies: 0, Total Users: 0, Total Employees: 0, Total Clients: 0, Total Revenue: 0) */}
-      {(isSuperAdmin || !hasCompanies) && (
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5">
-          <div className="p-4 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-200/80 dark:border-[#1E293B] shadow-xs">
-            <div className="flex items-center justify-between text-slate-400">
-              <span className="text-[11px] font-bold uppercase tracking-wider">Total Companies</span>
-              <Building2 className="w-4 h-4 text-[#0F766E] dark:text-[#14B8A6]" />
-            </div>
-            <div className="mt-2 text-2xl font-bold font-mono text-slate-900 dark:text-[#F8FAFC]">
-              {totalCompaniesCount}
-            </div>
-            <span className="text-[11px] text-slate-400 font-mono">Isolated multi-tenant instances</span>
-          </div>
-
-          <div className="p-4 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-200/80 dark:border-[#1E293B] shadow-xs">
-            <div className="flex items-center justify-between text-slate-400">
-              <span className="text-[11px] font-bold uppercase tracking-wider">Total Users</span>
-              <Users className="w-4 h-4 text-[#0F766E] dark:text-[#14B8A6]" />
-            </div>
-            <div className="mt-2 text-2xl font-bold font-mono text-slate-900 dark:text-[#F8FAFC]">
-              {totalUsersCount}
-            </div>
-            <span className="text-[11px] text-slate-400 font-mono">System authenticated accounts</span>
-          </div>
-
-          <div className="p-4 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-200/80 dark:border-[#1E293B] shadow-xs">
-            <div className="flex items-center justify-between text-slate-400">
-              <span className="text-[11px] font-bold uppercase tracking-wider">Total Employees</span>
-              <Users className="w-4 h-4 text-emerald-500" />
-            </div>
-            <div className="mt-2 text-2xl font-bold font-mono text-slate-900 dark:text-[#F8FAFC]">
-              {totalEmployeesCount}
-            </div>
-            <span className="text-[11px] text-slate-400 font-mono">Active personnel records</span>
-          </div>
-
-          <div className="p-4 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-200/80 dark:border-[#1E293B] shadow-xs">
-            <div className="flex items-center justify-between text-slate-400">
-              <span className="text-[11px] font-bold uppercase tracking-wider">Total Clients</span>
-              <ShieldCheck className="w-4 h-4 text-indigo-500" />
-            </div>
-            <div className="mt-2 text-2xl font-bold font-mono text-slate-900 dark:text-[#F8FAFC]">
-              {totalClientsCount}
-            </div>
-            <span className="text-[11px] text-slate-400 font-mono">Enterprise accounts</span>
-          </div>
-
-          <div className="p-4 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-200/80 dark:border-[#1E293B] shadow-xs col-span-2 lg:col-span-1">
-            <div className="flex items-center justify-between text-slate-400">
-              <span className="text-[11px] font-bold uppercase tracking-wider">Total Revenue</span>
-              <DollarSign className="w-4 h-4 text-amber-500" />
-            </div>
-            <div className="mt-2 text-2xl font-bold font-mono text-slate-900 dark:text-[#F8FAFC]">
-              ₹{totalRevenue.toLocaleString()}
-            </div>
-            <span className="text-[11px] text-slate-400 font-mono">Subscription monthly MRR</span>
-          </div>
-        </div>
-      )}
-
-      {/* Zero Companies Production State Notice */}
-      {!hasCompanies && (
-        <div className="p-8 rounded-2xl bg-white dark:bg-[#0F172A] border-2 border-dashed border-slate-200 dark:border-[#1E293B] text-center space-y-4">
-          <div className="w-14 h-14 rounded-2xl bg-[#0F766E]/10 dark:bg-[#0F766E]/20 text-[#0F766E] dark:text-[#14B8A6] flex items-center justify-center mx-auto shadow-xs">
-            <Building2 className="w-7 h-7" />
-          </div>
-          <div className="max-w-md mx-auto space-y-1.5">
-            <h2 className="text-base font-bold text-slate-900 dark:text-[#F8FAFC]">
-              ARQHR ERP Clean Production State
-            </h2>
-            <p className="text-xs text-slate-500 leading-relaxed">
-              All demo datasets, sample records, and test instances have been removed. System launched as a fresh ERP platform. You are logged in with the root <strong>ARQENSIAL Super Admin</strong> account.
-            </p>
+      {/* 2. TOP 6 KPI CARDS (16px radius, hover lift effect, scale 1.02) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        {/* KPI 1: Total Employees */}
+        <div
+          onClick={() => setActiveTab('employees')}
+          className="p-5 rounded-2xl bg-white border border-[#E2E8F0] shadow-xs card-hover-lift cursor-pointer space-y-2 flex flex-col justify-between"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-mono uppercase font-bold text-[#64748B]">
+              Total Employees
+            </span>
+            <span className="p-2 rounded-xl bg-blue-50 text-[#2563EB]">
+              <Users className="w-4 h-4" />
+            </span>
           </div>
           <div>
-            <button
-              onClick={() => setActiveTab('superadmin_companies')}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs text-white bg-[#0F766E] hover:bg-[#115E59] shadow-sm transition cursor-pointer"
-            >
-              <PlusCircle className="w-4 h-4" />
-              <span>Go to Company Management</span>
-            </button>
+            <div className="text-2xl font-bold font-mono text-[#0F172A]">
+              {totalEmployeesCount}
+            </div>
+            <div className="flex items-center gap-1 text-[11px] text-[#64748B] mt-0.5">
+              <span>{departments.length} departments</span>
+            </div>
           </div>
+        </div>
+
+        {/* KPI 2: Present Today */}
+        <div
+          onClick={() => setActiveTab('attendance')}
+          className="p-5 rounded-2xl bg-white border border-[#E2E8F0] shadow-xs card-hover-lift cursor-pointer space-y-2 flex flex-col justify-between"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-mono uppercase font-bold text-[#64748B]">
+              Present Today
+            </span>
+            <span className="p-2 rounded-xl bg-emerald-50 text-[#10B981]">
+              <CheckCircle2 className="w-4 h-4" />
+            </span>
+          </div>
+          <div>
+            <div className="text-2xl font-bold font-mono text-[#10B981]">
+              {presentCount}
+            </div>
+            <div className="flex items-center gap-1 text-[11px] text-slate-500 mt-0.5">
+              <span>{lateCount > 0 ? `${lateCount} late arrival(s)` : '100% on schedule'}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* KPI 3: Absent Today */}
+        <div
+          onClick={() => setActiveTab('attendance')}
+          className="p-5 rounded-2xl bg-white border border-[#E2E8F0] shadow-xs card-hover-lift cursor-pointer space-y-2 flex flex-col justify-between"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-mono uppercase font-bold text-[#64748B]">
+              Absent Today
+            </span>
+            <span className="p-2 rounded-xl bg-rose-50 text-[#EF4444]">
+              <Clock className="w-4 h-4" />
+            </span>
+          </div>
+          <div>
+            <div className="text-2xl font-bold font-mono text-[#EF4444]">
+              {absentCount}
+            </div>
+            <div className="flex items-center gap-1 text-[11px] text-slate-500 mt-0.5">
+              <span>{onLeaveCount} on approved leave</span>
+            </div>
+          </div>
+        </div>
+
+        {/* KPI 4: Leave Requests */}
+        <div
+          onClick={() => setActiveTab('leaves')}
+          className="p-5 rounded-2xl bg-white border border-[#E2E8F0] shadow-xs card-hover-lift cursor-pointer space-y-2 flex flex-col justify-between"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-mono uppercase font-bold text-[#64748B]">
+              Leave Requests
+            </span>
+            <span className="p-2 rounded-xl bg-amber-50 text-[#F59E0B]">
+              <CalendarDays className="w-4 h-4" />
+            </span>
+          </div>
+          <div>
+            <div className="text-2xl font-bold font-mono text-[#F59E0B]">
+              {pendingLeaves.length}
+            </div>
+            <div className="flex items-center gap-1 text-[11px] text-slate-500 mt-0.5">
+              <span>Pending review</span>
+            </div>
+          </div>
+        </div>
+
+        {/* KPI 5: Monthly Payroll */}
+        <div
+          onClick={() => setActiveTab('payroll')}
+          className="p-5 rounded-2xl bg-white border border-[#E2E8F0] shadow-xs card-hover-lift cursor-pointer space-y-2 flex flex-col justify-between"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-mono uppercase font-bold text-[#64748B]">
+              Monthly Payroll
+            </span>
+            <span className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
+              <Banknote className="w-4 h-4" />
+            </span>
+          </div>
+          <div>
+            <div className="text-2xl font-bold font-mono text-[#0F172A]">
+              ${monthlyPayrollTotal > 0 ? (monthlyPayrollTotal / 1000).toFixed(1) + 'k' : '$0'}
+            </div>
+            <div className="flex items-center gap-1 text-[11px] text-emerald-600 mt-0.5">
+              <span>Statutory compliant</span>
+            </div>
+          </div>
+        </div>
+
+        {/* KPI 6: Active Companies */}
+        <div
+          onClick={() => setActiveTab(isSuperAdmin ? 'superadmin_companies' : 'company_settings')}
+          className="p-5 rounded-2xl bg-white border border-[#E2E8F0] shadow-xs card-hover-lift cursor-pointer space-y-2 flex flex-col justify-between"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-mono uppercase font-bold text-[#64748B]">
+              Active Companies
+            </span>
+            <span className="p-2 rounded-xl bg-slate-100 text-[#0F172A]">
+              <Building2 className="w-4 h-4" />
+            </span>
+          </div>
+          <div>
+            <div className="text-2xl font-bold font-mono text-[#0F172A]">
+              {activeCompaniesCount}
+            </div>
+            <div className="flex items-center gap-1 text-[11px] text-slate-500 mt-0.5">
+              <span>Multi-Tenant RLS</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. CORE OPERATIONAL GRID: ATTENDANCE WIDGET + RECENT ACTIVITIES */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Left Column (8 cols): Attendance & Punctuality Breakdown */}
+        <div className="lg:col-span-8 space-y-6">
+          {/* Quick Punch Interactive Station */}
+          <div className="p-6 rounded-2xl bg-white border border-[#E2E8F0] shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-3">
+              <div>
+                <h3 className="font-bold text-sm text-[#0F172A]">Today's Workforce Attendance Status</h3>
+                <p className="text-xs text-[#64748B]">
+                  Live status for {today} · Geofenced GPS validation active
+                </p>
+              </div>
+              <button
+                onClick={() => setActiveTab('attendance')}
+                className="text-xs text-[#2563EB] hover:underline font-semibold flex items-center gap-1"
+              >
+                <span>View Full Register</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Attendance Progress Bar */}
+            {hasEmployees ? (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-mono">
+                  <span className="text-emerald-600 font-semibold">{presentCount} Present</span>
+                  <span className="text-amber-500 font-semibold">{lateCount} Late</span>
+                  <span className="text-blue-500 font-semibold">{onLeaveCount} On Leave</span>
+                  <span className="text-rose-500 font-semibold">{absentCount} Absent</span>
+                </div>
+                <div className="w-full h-3 rounded-full bg-slate-100 overflow-hidden flex">
+                  <div
+                    style={{ width: `${(presentCount / totalEmployeesCount) * 100}%` }}
+                    className="bg-[#10B981] h-full"
+                    title={`Present: ${presentCount}`}
+                  />
+                  <div
+                    style={{ width: `${(lateCount / totalEmployeesCount) * 100}%` }}
+                    className="bg-[#F59E0B] h-full"
+                    title={`Late: ${lateCount}`}
+                  />
+                  <div
+                    style={{ width: `${(onLeaveCount / totalEmployeesCount) * 100}%` }}
+                    className="bg-[#2563EB] h-full"
+                    title={`On Leave: ${onLeaveCount}`}
+                  />
+                  <div
+                    style={{ width: `${(absentCount / totalEmployeesCount) * 100}%` }}
+                    className="bg-[#EF4444] h-full"
+                    title={`Absent: ${absentCount}`}
+                  />
+                </div>
+              </div>
+            ) : (
+              /* EMPTY STATE FOR ATTENDANCE */
+              <div className="py-6 text-center space-y-3">
+                <Clock className="w-8 h-8 text-slate-400 mx-auto" />
+                <div className="text-xs text-[#64748B]">
+                  No Attendance Records Yet. Add employees to start recording real-time clock-in.
+                </div>
+                <button
+                  onClick={handleQuickClockIn}
+                  className="px-4 py-2 text-xs font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-xl cursor-pointer"
+                >
+                  Generate Attendance / Clock In
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* RECENT ACTIVITIES SECTION (Audit Log Stream) */}
+          <div className="p-6 rounded-2xl bg-white border border-[#E2E8F0] shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-3">
+              <div className="flex items-center gap-2">
+                <Activity className="w-4 h-4 text-[#2563EB]" />
+                <h3 className="font-bold text-sm text-[#0F172A]">Recent Activities & Security Log</h3>
+              </div>
+              <button
+                onClick={() => setActiveTab('security')}
+                className="text-xs text-[#2563EB] hover:underline font-semibold flex items-center gap-1"
+              >
+                <span>Full Audit Vault</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {auditLogs.length === 0 ? (
+              <div className="py-8 text-center text-xs text-[#64748B]">
+                No recent activity recorded yet. System modifications will stream here in real time.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {auditLogs.slice(0, 5).map((log) => (
+                  <div
+                    key={log.id}
+                    className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-start justify-between gap-3 text-xs"
+                  >
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-[10px] font-bold text-[#2563EB]">
+                          {log.action}
+                        </span>
+                        <span className="font-semibold text-[#0F172A]">{log.resourceType}</span>
+                      </div>
+                      <p className="text-slate-600 text-[11px]">{log.details}</p>
+                    </div>
+                    <span className="font-mono text-[10px] text-slate-400 whitespace-nowrap">
+                      {log.timestamp}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right Column (4 cols): Birthdays, Announcements, Notifications */}
+        <div className="lg:col-span-4 space-y-6">
+          {/* UPCOMING BIRTHDAYS */}
+          <div className="p-6 rounded-2xl bg-white border border-[#E2E8F0] shadow-xs space-y-4">
+            <div className="flex items-center gap-2 border-b border-[#E2E8F0] pb-3">
+              <Cake className="w-4 h-4 text-amber-500" />
+              <h3 className="font-bold text-sm text-[#0F172A]">Upcoming Birthdays</h3>
+            </div>
+
+            {upcomingBirthdays.length === 0 ? (
+              <div className="py-4 text-center text-xs text-[#64748B]">
+                No upcoming birthdays this week.
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {upcomingBirthdays.map((b, i) => (
+                  <div
+                    key={i}
+                    className="p-3 rounded-xl bg-slate-50 flex items-center justify-between text-xs"
+                  >
+                    <div>
+                      <span className="font-semibold text-[#0F172A] block">{b.name}</span>
+                      <span className="text-[10px] text-slate-500">{b.role}</span>
+                    </div>
+                    <span className="font-mono text-[11px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded">
+                      {b.date}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ANNOUNCEMENTS & COMPANY PULSE */}
+          <div className="p-6 rounded-2xl bg-white border border-[#E2E8F0] shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-3">
+              <div className="flex items-center gap-2">
+                <Radio className="w-4 h-4 text-[#2563EB]" />
+                <h3 className="font-bold text-sm text-[#0F172A]">Announcements</h3>
+              </div>
+              <button
+                onClick={() => setActiveTab('engagement')}
+                className="text-xs text-[#2563EB] hover:underline font-semibold"
+              >
+                Pulse Wall
+              </button>
+            </div>
+
+            {feedPosts.length === 0 ? (
+              <div className="py-4 text-center text-xs text-[#64748B]">
+                No company broadcasts yet. Publish updates from Company Pulse.
+              </div>
+            ) : (
+              <div className="space-y-2.5 text-xs">
+                {feedPosts.slice(0, 3).map((post) => (
+                  <div key={post.id} className="p-3 rounded-xl bg-slate-50 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-[#0F172A]">{post.authorName}</span>
+                      <span className="text-[10px] text-slate-400 font-mono">{post.timestamp}</span>
+                    </div>
+                    <p className="text-slate-600 text-[11px] line-clamp-2">{post.content}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* NOTIFICATIONS REAL-TIME STREAM */}
+          <div className="p-6 rounded-2xl bg-white border border-[#E2E8F0] shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-3">
+              <div className="flex items-center gap-2">
+                <Bell className="w-4 h-4 text-[#2563EB]" />
+                <h3 className="font-bold text-sm text-[#0F172A]">Notifications</h3>
+              </div>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-blue-50 text-[#2563EB] font-bold">
+                {notifications.length}
+              </span>
+            </div>
+
+            {notifications.length === 0 ? (
+              <div className="py-4 text-center text-xs text-[#64748B]">
+                You're completely caught up! No active alerts.
+              </div>
+            ) : (
+              <div className="space-y-2 text-xs">
+                {notifications.slice(0, 4).map((n) => (
+                  <div
+                    key={n.id}
+                    className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-start gap-2.5"
+                  >
+                    <div className="w-2 h-2 rounded-full bg-[#2563EB] mt-1 shrink-0" />
+                    <div>
+                      <span className="font-semibold text-[#0F172A] block">{n.title}</span>
+                      <span className="text-[11px] text-slate-500 leading-snug">{n.message}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* 4. PROFESSIONAL EMPTY STATE FALLBACKS IF SYSTEM HAS NO DATA */}
+      {!hasCompanies && (
+        <div className="p-8 rounded-2xl bg-white border border-[#E2E8F0] text-center space-y-4">
+          <Building2 className="w-12 h-12 text-[#2563EB] mx-auto" />
+          <div className="max-w-md mx-auto">
+            <h3 className="text-base font-bold text-[#0F172A]">No Companies Found</h3>
+            <p className="text-xs text-[#64748B] mt-1">
+              Your platform is clean and production-ready. Create your first holding or child organization.
+            </p>
+          </div>
+          <button
+            onClick={() => setActiveTab('superadmin_companies')}
+            className="px-5 py-2.5 text-xs font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-xl shadow-xs transition-colors cursor-pointer"
+          >
+            Create First Company
+          </button>
         </div>
       )}
 
-      {/* Tenant-level cards (shown when a company context is active) */}
-      {hasCompanies && (
-        <>
-          <AttendanceQuickPunch />
-
-          {/* Primary KPI Metrics Grid */}
-          <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-            <div
-              onClick={() => setActiveTab('employees')}
-              className="p-4 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-200/80 dark:border-[#1E293B] shadow-xs hover:border-[#0F766E] transition-colors cursor-pointer group"
-            >
-              <div className="flex items-center justify-between text-slate-500">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-[#CBD5E1]">Total Staff</span>
-                <Users className="w-4 h-4 text-[#0F766E] dark:text-[#14B8A6]" />
-              </div>
-              <div className="mt-2 text-2xl font-bold font-mono text-slate-900 dark:text-[#F8FAFC] tabular-nums">
-                {employees.length}
-              </div>
-              <div className="mt-1 text-[11px] text-slate-400 font-mono">
-                Enrolled personnel
-              </div>
-            </div>
-
-            <div
-              onClick={() => setActiveTab('attendance')}
-              className="p-4 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-200/80 dark:border-[#1E293B] shadow-xs hover:border-[#22C55E] transition-colors cursor-pointer group"
-            >
-              <div className="flex items-center justify-between text-slate-500">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-[#CBD5E1]">Present</span>
-                <CheckCircle2 className="w-4 h-4 text-[#22C55E]" />
-              </div>
-              <div className="mt-2 text-2xl font-bold font-mono text-slate-900 dark:text-[#F8FAFC] tabular-nums">
-                {presentCount}
-              </div>
-              <div className="mt-1 text-[11px] text-slate-500 dark:text-[#CBD5E1] font-mono">
-                {employees.length > 0 ? Math.round((presentCount / employees.length) * 100) : 0}% on duty
-              </div>
-            </div>
-
-            <div
-              onClick={() => setActiveTab('attendance')}
-              className="p-4 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-200/80 dark:border-[#1E293B] shadow-xs hover:border-[#F59E0B] transition-colors cursor-pointer group"
-            >
-              <div className="flex items-center justify-between text-slate-500">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-[#CBD5E1]">Late Marks</span>
-                <Clock className="w-4 h-4 text-[#F59E0B]" />
-              </div>
-              <div className="mt-2 text-2xl font-bold font-mono text-slate-900 dark:text-[#F8FAFC] tabular-nums">
-                {lateCount}
-              </div>
-              <div className="mt-1 text-[11px] text-[#F59E0B]">
-                Recorded today
-              </div>
-            </div>
-
-            <div
-              onClick={() => setActiveTab('attendance')}
-              className="p-4 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-200/80 dark:border-[#1E293B] shadow-xs hover:border-[#EF4444] transition-colors cursor-pointer group"
-            >
-              <div className="flex items-center justify-between text-slate-500">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-[#CBD5E1]">Absent</span>
-                <AlertCircle className="w-4 h-4 text-[#EF4444]" />
-              </div>
-              <div className="mt-2 text-2xl font-bold font-mono text-slate-900 dark:text-[#F8FAFC] tabular-nums">
-                {absentCount}
-              </div>
-              <div className="mt-1 text-[11px] text-slate-400">
-                Unplanned absence
-              </div>
-            </div>
-
-            <div
-              onClick={() => setActiveTab('leaves')}
-              className="p-4 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-200/80 dark:border-[#1E293B] shadow-xs hover:border-[#0F766E] transition-colors cursor-pointer group"
-            >
-              <div className="flex items-center justify-between text-slate-500">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-[#CBD5E1]">Leave Approvals</span>
-                <CalendarDays className="w-4 h-4 text-[#14B8A6]" />
-              </div>
-              <div className="mt-2 text-2xl font-bold font-mono text-slate-900 dark:text-[#F8FAFC] tabular-nums">
-                {pendingLeaves.length}
-              </div>
-              <div className="mt-1 text-[11px] text-[#0F766E] dark:text-[#14B8A6] font-medium">
-                Requires action
-              </div>
-            </div>
-
-            <div
-              onClick={() => setActiveTab('payroll')}
-              className="p-4 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-200/80 dark:border-[#1E293B] shadow-xs hover:border-[#0F766E] transition-colors cursor-pointer group"
-            >
-              <div className="flex items-center justify-between text-slate-500">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-[#CBD5E1]">Payroll Cycle</span>
-                <Banknote className="w-4 h-4 text-[#22C55E]" />
-              </div>
-              <div className="mt-2 text-sm font-bold font-mono text-slate-900 dark:text-[#F8FAFC] truncate">
-                {draftPayroll ? 'Draft Pending' : 'Current Batch'}
-              </div>
-              <div className="mt-1 text-[11px] text-slate-400 font-mono">
-                {payrollRuns.length} runs on record
-              </div>
-            </div>
+      {hasCompanies && !hasEmployees && (
+        <div className="p-8 rounded-2xl bg-white border border-[#E2E8F0] text-center space-y-4">
+          <Users className="w-12 h-12 text-[#2563EB] mx-auto" />
+          <div className="max-w-md mx-auto">
+            <h3 className="text-base font-bold text-[#0F172A]">No Employees Enrolled Yet</h3>
+            <p className="text-xs text-[#64748B] mt-1">
+              Add your first team member or upload a batch CSV to start attendance and payroll operations.
+            </p>
           </div>
-
-          {/* Department Breakdown & Approvals */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 bg-white dark:bg-[#0F172A] rounded-xl border border-slate-200/80 dark:border-[#1E293B] p-5 shadow-xs">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-[#1E293B]">
-                <div>
-                  <h2 className="text-sm font-bold text-slate-900 dark:text-[#F8FAFC]">Department Headcount & Allocation</h2>
-                  <p className="text-xs text-slate-500 dark:text-[#CBD5E1]">Distribution across operational units</p>
-                </div>
-                <button
-                  onClick={() => setActiveTab('org_structure')}
-                  className="text-xs font-semibold text-[#0F766E] dark:text-[#14B8A6] hover:underline flex items-center gap-1 cursor-pointer"
-                >
-                  Org Hierarchy <ArrowUpRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              <div className="mt-4 space-y-4">
-                {departments.length === 0 ? (
-                  <div className="py-8 text-center text-xs text-slate-400">
-                    No departments created yet for this organization.
-                  </div>
-                ) : (
-                  departments.map(dept => {
-                    const count = employees.filter(e => e.departmentId === dept.id || e.departmentName === dept.name).length;
-                    const total = employees.length || 1;
-                    const percentage = Math.round((count / total) * 100);
-                    return (
-                      <div key={dept.id} className="space-y-1.5">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="font-semibold text-slate-800 dark:text-[#F8FAFC] flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-[#0F766E]" />
-                            {dept.name} ({dept.code})
-                          </span>
-                          <span className="font-mono text-slate-500 dark:text-[#CBD5E1] tabular-nums">
-                            {count} staff · {percentage}%
-                          </span>
-                        </div>
-                        <div className="w-full bg-slate-100 dark:bg-[#1E293B] h-2 rounded-full overflow-hidden">
-                          <div
-                            className="bg-[#0F766E] h-full rounded-full transition-all duration-500"
-                            style={{ width: `${percentage}%` }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-
-            <div className="bg-white dark:bg-[#0F172A] rounded-xl border border-slate-200/80 dark:border-[#1E293B] p-5 shadow-xs flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-[#1E293B]">
-                  <h2 className="text-sm font-bold text-slate-900 dark:text-[#F8FAFC]">Pending Approvals</h2>
-                  <span className="text-xs font-mono px-2 py-0.5 bg-amber-50 dark:bg-amber-950/60 text-[#F59E0B] rounded font-semibold">
-                    {pendingLeaves.length} items
-                  </span>
-                </div>
-
-                <div className="mt-3 divide-y divide-slate-100 dark:divide-[#1E293B]">
-                  {pendingLeaves.length === 0 ? (
-                    <div className="py-8 text-center text-xs text-slate-400">
-                      All employee requests cleared
-                    </div>
-                  ) : (
-                    pendingLeaves.slice(0, 3).map(req => (
-                      <div key={req.id} className="py-2.5 flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-xs font-semibold text-slate-900 dark:text-[#F8FAFC] truncate">
-                            {req.employeeName}
-                          </p>
-                          <p className="text-[11px] text-slate-500 dark:text-[#CBD5E1] truncate">
-                            {req.leaveType} · {req.daysCount} Day(s)
-                          </p>
-                          <p className="text-[10px] text-slate-400 italic truncate mt-0.5">
-                            "{req.reason}"
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => setActiveTab('leaves')}
-                          className="px-2 py-1 text-[11px] font-semibold text-[#0F766E] dark:text-[#14B8A6] hover:bg-teal-50 dark:hover:bg-[#1E293B] rounded cursor-pointer shrink-0"
-                        >
-                          Review
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              <div className="pt-3 border-t border-slate-100 dark:border-[#1E293B]">
-                <button
-                  onClick={() => setActiveTab('leaves')}
-                  className="w-full text-center py-2 text-xs font-semibold text-[#0F766E] dark:text-[#14B8A6] hover:bg-teal-50 dark:hover:bg-[#1E293B]/50 rounded-lg transition-colors cursor-pointer"
-                >
-                  View All Approvals Workflow →
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
+          <button
+            onClick={() => setActiveTab('employees')}
+            className="px-5 py-2.5 text-xs font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-xl shadow-xs transition-colors cursor-pointer"
+          >
+            Add First Employee
+          </button>
+        </div>
       )}
     </div>
   );

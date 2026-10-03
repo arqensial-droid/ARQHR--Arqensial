@@ -99,7 +99,8 @@ export interface SecurityAuditRecord {
     | 'DATA_EXPORTED'
     | 'COMPANY_DELETED'
     | 'COMPANY_DATA_RESET'
-    | 'DEMO_DATA_PURGED';
+    | 'DEMO_DATA_PURGED'
+    | 'ADMIN_PASSWORD_RESET';
   category: 'authentication' | 'rbac' | 'tenant' | 'security' | 'compliance';
   ipAddress: string;
   userAgent: string;

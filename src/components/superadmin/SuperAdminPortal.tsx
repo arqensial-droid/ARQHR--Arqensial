@@ -36,6 +36,7 @@ import {
   AlertTriangle,
   Lock,
   UserPlus,
+  ShieldCheck,
 } from 'lucide-react';
 
 export const SuperAdminPortal: React.FC = () => {

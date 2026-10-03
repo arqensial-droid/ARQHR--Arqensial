@@ -4,6 +4,7 @@ import { PWAInstallButton } from '../common/PWAInstallButton';
 import { NotificationDrawer } from './NotificationDrawer';
 import { SupabaseConnectModal } from '../database/SupabaseConnectModal';
 import { AuthModal } from '../auth/AuthModal';
+import { UserProfileModal } from '../profile/UserProfileModal';
 import { isConfiguredForLiveSupabase } from '../../lib/supabase';
 import {
   Bell,
@@ -55,6 +56,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebarMobile }) => {
   const [notifDrawerOpen, setNotifDrawerOpen] = useState(false);
   const [supabaseModalOpen, setSupabaseModalOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   const isLiveSupabase = isConfiguredForLiveSupabase();
@@ -337,9 +339,21 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebarMobile }) => {
               className="flex items-center gap-2 cursor-pointer hover:opacity-85 transition-opacity text-left"
               title={`${currentUser.fullName} (${currentUser.designation})`}
             >
-              <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-[#0F766E] to-[#14B8A6] text-white font-semibold text-xs flex items-center justify-center ring-2 ring-white dark:ring-[#0F172A] shadow-xs">
-                {currentUser.firstName.charAt(0)}{currentUser.lastName.charAt(0)}
-              </div>
+              {/* Profile Photo or Fallback Initials */}
+              {currentUser.avatarUrl ? (
+                <div className="w-7 h-7 rounded-full overflow-hidden border border-[#0F766E] shadow-xs shrink-0">
+                  <img
+                    src={currentUser.avatarUrl}
+                    alt={currentUser.fullName}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              ) : (
+                <div className="w-7 h-7 rounded-full bg-linear-to-tr from-[#0F766E] to-[#14B8A6] text-white font-semibold text-xs flex items-center justify-center ring-2 ring-white dark:ring-[#0F172A] shadow-xs shrink-0">
+                  {currentUser.firstName ? currentUser.firstName.charAt(0) : 'U'}
+                  {currentUser.lastName ? currentUser.lastName.charAt(0) : ''}
+                </div>
+              )}
               <div className="hidden xl:block text-left text-xs leading-tight">
                 <div className="font-semibold text-slate-900 dark:text-[#F8FAFC] truncate max-w-[120px]">
                   {currentUser.fullName}
@@ -352,7 +366,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebarMobile }) => {
             </button>
 
             {userDropdownOpen && (
-              <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-[#0F172A] rounded-xl shadow-xl border border-slate-200 dark:border-[#1E293B] py-1.5 z-50 animate-fade-in font-sans">
+              <div className="absolute right-0 top-full mt-2 w-60 bg-white dark:bg-[#0F172A] rounded-xl shadow-xl border border-slate-200 dark:border-[#1E293B] py-1.5 z-50 animate-fade-in font-sans">
                 <div className="px-3 py-2 border-b border-slate-100 dark:border-[#1E293B]">
                   <div className="font-bold text-xs text-slate-900 dark:text-white truncate">
                     {currentUser.fullName}
@@ -368,17 +382,24 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebarMobile }) => {
                 <div className="py-1">
                   <button
                     onClick={() => {
-                      if (currentRole === 'employee') {
-                        setActiveTab('ess_portal');
-                      } else {
-                        setActiveTab('employees');
-                      }
+                      setProfileModalOpen(true);
+                      setUserDropdownOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#1E293B]/60 flex items-center gap-2 cursor-pointer font-medium"
+                  >
+                    <User className="w-3.5 h-3.5 text-[#0F766E] dark:text-[#14B8A6]" />
+                    <span>Manage Profile & Photo</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setActiveTab('documents');
                       setUserDropdownOpen(false);
                     }}
                     className="w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#1E293B]/60 flex items-center gap-2 cursor-pointer"
                   >
-                    <User className="w-3.5 h-3.5 text-slate-400" />
-                    <span>View Profile</span>
+                    <Database className="w-3.5 h-3.5 text-[#0F766E]" />
+                    <span>File & Media Vault</span>
                   </button>
 
                   <button
@@ -452,6 +473,9 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebarMobile }) => {
 
       {/* Auth Modal */}
       <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} />
+
+      {/* User Profile Modal */}
+      <UserProfileModal isOpen={profileModalOpen} onClose={() => setProfileModalOpen(false)} />
     </>
   );
 };

@@ -58,6 +58,8 @@ import {
   SUPER_ADMIN_PERMISSIONS,
   ROOT_SUPERADMIN_TENANT_ID,
 } from '../db/seedData/company';
+import { ManagedFile, FileAuditRecord } from '../types/files';
+import { storageService, UploadFileOptions } from '../services/storageService';
 import { companyLifecycleService } from '../services/companyLifecycleService';
 import { apiClient, getLocalTableData, setLocalTableData } from '../services/apiClient';
 import { employeeService } from '../services/employeeService';
@@ -206,6 +208,27 @@ interface AppContextType {
   createPost: (content: string, type: FeedPost['type'], badgeType?: FeedPost['badgeType'], recipientName?: string) => void;
   addGoal: (goal: Partial<GoalOKR>) => void;
   updateGoalProgress: (goalId: string, progress: number) => void;
+
+  // File & Media Management System
+  managedFiles: ManagedFile[];
+  fileAuditLogs: FileAuditRecord[];
+  refreshFiles: () => void;
+  uploadManagedFile: (options: UploadFileOptions) => Promise<{ success: boolean; file?: ManagedFile; error?: string }>;
+  replaceManagedFile: (fileId: string, newFile: File) => Promise<{ success: boolean; file?: ManagedFile; error?: string }>;
+  deleteManagedFile: (fileId: string) => Promise<{ success: boolean; error?: string }>;
+  downloadManagedFile: (file: ManagedFile) => void;
+  updateCompanyLogo: (companyId: string, file: File | Blob) => Promise<{ success: boolean; url?: string; error?: string }>;
+  deleteCompanyLogo: (companyId: string) => Promise<boolean>;
+  updateUserProfile: (profileData: {
+    fullName?: string;
+    email?: string;
+    phone?: string;
+    designation?: string;
+    department?: string;
+    departmentName?: string;
+    bio?: string;
+    avatarUrl?: string;
+  }) => Promise<boolean>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -998,6 +1021,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         experience: [],
         education: [],
         notes: [],
+        bankDetails: {
+          accountHolder: adminData.fullName,
+          accountNumber: 'N/A',
+          bankName: 'Corporate Treasury',
+          ifscSwift: 'N/A',
+          branch: 'Main',
+          panNumber: 'N/A',
+          uanNumber: 'N/A',
+        },
+        salaryStructure: {
+          annualCTC: 0,
+          monthlyGross: 0,
+          basic: 0,
+          hra: 0,
+          specialAllowance: 0,
+          conveyance: 0,
+          performanceBonus: 0,
+          pfEmployee: 0,
+          pfEmployer: 0,
+          esi: 0,
+          professionalTax: 0,
+          tdsMonthly: 0,
+          netMonthly: 0,
+        },
       };
 
       apiClient.insert('employees', adminEmp);
@@ -1213,6 +1260,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       experience: [],
       education: [],
       notes: [],
+      bankDetails: {
+        accountHolder: adminData.fullName,
+        accountNumber: 'N/A',
+        bankName: 'Corporate Treasury',
+        ifscSwift: 'N/A',
+        branch: 'Main Office',
+        panNumber: 'N/A',
+        uanNumber: 'N/A',
+      },
+      salaryStructure: {
+        annualCTC: 0,
+        monthlyGross: 0,
+        basic: 0,
+        hra: 0,
+        specialAllowance: 0,
+        conveyance: 0,
+        performanceBonus: 0,
+        pfEmployee: 0,
+        pfEmployer: 0,
+        esi: 0,
+        professionalTax: 0,
+        tdsMonthly: 0,
+        netMonthly: 0,
+      },
     };
 
     apiClient.insert('employees', newAdmin);
@@ -1828,6 +1899,138 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
+  // ----------------------------------------------------
+  // Centralized File & Media Management System Implementation
+  // ----------------------------------------------------
+  const [managedFiles, setManagedFiles] = useState<ManagedFile[]>(() => {
+    return storageService.getFiles();
+  });
+  const [fileAuditLogs, setFileAuditLogs] = useState<FileAuditRecord[]>(() => {
+    return storageService.getAuditLogs();
+  });
+
+  const refreshFiles = () => {
+    setManagedFiles(storageService.getFiles());
+    setFileAuditLogs(storageService.getAuditLogs());
+  };
+
+  const uploadManagedFile = async (options: UploadFileOptions) => {
+    const res = await storageService.uploadFile(options);
+    if (res.success && res.file) {
+      refreshFiles();
+      addNotification('File Uploaded', `${res.file.fileName} (${res.file.fileSizeFormatted}) securely stored in vault.`, 'success');
+    } else {
+      addNotification('Upload Failed', res.error || 'Unable to store file.', 'error');
+    }
+    return res;
+  };
+
+  const replaceManagedFile = async (fileId: string, newFile: File) => {
+    const res = await storageService.replaceFile(fileId, newFile, {
+      id: currentUser.id,
+      fullName: currentUser.fullName,
+      email: currentUser.email,
+      role: currentRole,
+    });
+    if (res.success && res.file) {
+      refreshFiles();
+      addNotification('File Replaced', `Updated to version v${res.file.version}.`, 'success');
+    } else {
+      addNotification('Replacement Failed', res.error || 'Unable to replace file.', 'error');
+    }
+    return res;
+  };
+
+  const deleteManagedFile = async (fileId: string) => {
+    const res = await storageService.deleteFile(fileId, {
+      id: currentUser.id,
+      fullName: currentUser.fullName,
+      email: currentUser.email,
+      role: currentRole,
+    });
+    if (res.success) {
+      refreshFiles();
+      addNotification('File Removed', 'File permanently deleted from storage vault.', 'info');
+    } else {
+      addNotification('Delete Failed', res.error || 'Unable to delete file.', 'error');
+    }
+    return res;
+  };
+
+  const downloadManagedFile = (file: ManagedFile) => {
+    storageService.downloadFile(file, {
+      id: currentUser.id,
+      fullName: currentUser.fullName,
+      email: currentUser.email,
+      role: currentRole,
+    });
+    refreshFiles();
+    addNotification('File Download', `Downloading ${file.fileName}...`, 'info');
+  };
+
+  const updateCompanyLogo = async (companyId: string, file: File | Blob) => {
+    const res = await storageService.uploadCompanyLogo(companyId, file, {
+      id: currentUser.id,
+      fullName: currentUser.fullName,
+      email: currentUser.email,
+      role: currentRole,
+    });
+
+    if (res.success && res.url) {
+      editCompany(companyId, { logo: res.url });
+      refreshFiles();
+      addNotification('Company Logo Updated', 'Logo active across sidebar, dashboard, invoices & reports.', 'success');
+      return { success: true, url: res.url };
+    }
+    addNotification('Logo Upload Failed', res.error || 'Could not process company logo.', 'error');
+    return { success: false, error: res.error || 'Failed to upload logo' };
+  };
+
+  const deleteCompanyLogo = async (companyId: string) => {
+    editCompany(companyId, { logo: '' });
+    storageService.logAudit({
+      fileId: `logo-${companyId}`,
+      fileName: 'Company Logo',
+      action: 'DELETE',
+      userId: currentUser.id,
+      userName: currentUser.fullName,
+      userEmail: currentUser.email,
+      userRole: currentRole,
+      companyId,
+      companyName: companyId,
+      fileSize: '0 B',
+      storagePath: `/companies/${companyId}/logos`,
+      details: 'Company logo removed. System default ARQENSIAL placeholder logo restored.',
+    });
+    refreshFiles();
+    addNotification('Company Logo Deleted', 'Reverted to ARQENSIAL placeholder logo.', 'info');
+    return true;
+  };
+
+  const updateUserProfile = async (profileData: {
+    fullName?: string;
+    email?: string;
+    phone?: string;
+    designation?: string;
+    department?: string;
+    departmentName?: string;
+    bio?: string;
+    avatarUrl?: string;
+  }) => {
+    const empId = currentUser.id;
+    const deptName = profileData.departmentName || profileData.department || currentUser.departmentName;
+    const updates: Partial<Employee> = {
+      ...profileData,
+      departmentName: deptName,
+      department: deptName,
+    };
+
+    updateEmployee(empId, updates);
+    addAudit('USER_PROFILE_UPDATED', `User [${empId}]`, `Updated profile: ${profileData.fullName || currentUser.fullName}`);
+    addNotification('Profile Saved', 'Your user profile details and photo have been updated.', 'success');
+    return true;
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -1925,6 +2128,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         createCompanyAdmin,
         resetCompanyPassword,
         superAdminPermissions,
+        managedFiles,
+        fileAuditLogs,
+        refreshFiles,
+        uploadManagedFile,
+        replaceManagedFile,
+        deleteManagedFile,
+        downloadManagedFile,
+        updateCompanyLogo,
+        deleteCompanyLogo,
+        updateUserProfile,
       }}
     >
       {children}

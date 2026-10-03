@@ -333,6 +333,7 @@ export interface Employee {
   email: string;
   phone: string;
   avatarUrl?: string;
+  bio?: string;
   departmentId: string;
   departmentName: string;
   department?: string;
@@ -968,3 +969,5 @@ export interface EnterpriseUsageStats {
     logoUrl?: string;
   };
 }
+
+export * from './files';

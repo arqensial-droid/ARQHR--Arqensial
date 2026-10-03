@@ -34,18 +34,39 @@ export const ReportsModule: React.FC = () => {
     document.body.removeChild(link);
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
+
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-[#1E293B]">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 dark:text-[#F8FAFC] tracking-tight flex items-center gap-2">
-            <BarChart3 className="w-5 h-5 text-[#0F766E] dark:text-[#14B8A6]" />
-            <span>Reports & Workforce Intelligence</span>
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Audit-grade reporting, compliance records & CSV/PDF exports for {currentTenant.name}
-          </p>
+        <div className="flex items-center gap-3">
+          {/* Company Logo with Fallback to ARQENSIAL Placeholder */}
+          {currentTenant.logo ? (
+            <div className="w-12 h-12 rounded-xl bg-white p-1 border border-slate-200 dark:border-slate-700 shadow-xs flex items-center justify-center shrink-0">
+              <img
+                src={currentTenant.logo}
+                alt={currentTenant.name}
+                className="max-h-full max-w-full object-contain"
+              />
+            </div>
+          ) : (
+            <div className="w-12 h-12 rounded-xl bg-[#0F766E] text-white font-bold flex items-center justify-center text-sm shadow-xs shrink-0">
+              AQ
+            </div>
+          )}
+
+          <div>
+            <h1 className="text-xl font-bold text-slate-900 dark:text-[#F8FAFC] tracking-tight flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-[#0F766E] dark:text-[#14B8A6]" />
+              <span>Reports & Workforce Intelligence</span>
+            </h1>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Certified compliance records & statutory exports for <span className="font-semibold text-slate-700 dark:text-slate-300">{currentTenant.name}</span>
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
@@ -70,6 +91,15 @@ export const ReportsModule: React.FC = () => {
               </button>
             ))}
           </div>
+
+          <button
+            onClick={handlePrint}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-[#1E293B] hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-700 shadow-xs cursor-pointer transition-colors"
+            title="Print or Export PDF"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            <span>Print PDF</span>
+          </button>
 
           <button
             onClick={exportCSV}

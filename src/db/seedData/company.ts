@@ -98,6 +98,30 @@ export const ROOT_SUPER_ADMIN_USER: Employee = {
   experience: [],
   education: [],
   notes: [],
+  bankDetails: {
+    accountHolder: 'Super Admin',
+    accountNumber: 'N/A',
+    bankName: 'Corporate Treasury',
+    ifscSwift: 'N/A',
+    branch: 'ARQENSIAL HQ',
+    panNumber: 'N/A',
+    uanNumber: 'N/A',
+  },
+  salaryStructure: {
+    annualCTC: 0,
+    monthlyGross: 0,
+    basic: 0,
+    hra: 0,
+    specialAllowance: 0,
+    conveyance: 0,
+    performanceBonus: 0,
+    pfEmployee: 0,
+    pfEmployer: 0,
+    esi: 0,
+    professionalTax: 0,
+    tdsMonthly: 0,
+    netMonthly: 0,
+  },
 };
 
 // Aliases for any legacy references
